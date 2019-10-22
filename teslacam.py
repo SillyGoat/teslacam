@@ -10,7 +10,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import time
 import timeit
 
 import arg_parser
