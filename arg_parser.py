@@ -1,5 +1,14 @@
 import argparse
 
+PYRAMID_LAYOUT = {
+    'background_dimensions': (3840, 1920),
+    # The key names below must match the file name suffixes for the camera data
+    'front': (1280, 0),
+    'right_repeater': (0, 960),
+    'back': (1280, 960),
+    'left_repeater': (2560, 960),
+}
+
 
 CODEC_OPTIONS = {
     'hevc_nvenc': (
@@ -7,7 +16,7 @@ CODEC_OPTIONS = {
         '-b:v', '8M', # 8 MB bitrate
     ),
     'libx265': (
-        '-preset', 'ultrafast', # slow processing
+        '-preset', 'ultrafast', # probably faster for CPU only
         '-b:v', '8M', # 8 MB bitrate
     )
 }
@@ -60,6 +69,12 @@ def get_arguments():
         type=get_codec,
     )
     parser.add_argument(
+        '--scalar',
+        default=320,
+        help='scalar multiplier relative to 4:3 ratio to size video to (uses more CPU)',
+        type=positive_integer,
+    )
+    parser.add_argument(
         '--number_of_encoders',
         default=2,
         help='number of encoders to use',
@@ -76,6 +91,8 @@ def get_arguments():
         args.ffmpeg_folder_path,
         args.number_of_encoders,
         args.codec,
+        dict(PYRAMID_LAYOUT),
+        args.scalar,
         args.base_input_folder_path,
         args.base_output_folder_path,
         args.keep_temp_folder,
