@@ -87,9 +87,7 @@ async def populate_video_map(
 
     video_file_camera_position = match_result.group(2)
     video_file_camera = video_file_metadata.setdefault('cameras', {})
-    video_file_camera[video_file_camera_position] = (
-        video_file_path
-    )
+    video_file_camera[video_file_camera_position] = video_file_path
 
     video_file_metadata['duration'] = get_longest_duration(
         video_file_metadata.setdefault('duration', '0'),
@@ -130,24 +128,22 @@ def create_camera_filter_layer(stream_id, location):
         f'[layer{stream_id}][camera{stream_id}]overlay=eof_action=pass:repeatlast=0:x={x_offset}:y={y_offset}'
 
 
-def create_scale_filter(scalar):
+def create_scale_filter(shrink_percentage):
     ' Create a scale filter '
-    if scalar >= 320:
+    if shrink_percentage == 100:
         return ''
 
-    desired_width = 4 * scalar
-    return f'[scalelayer];[scalelayer]scale={desired_width}:-1:flags=bicubic'
+    return f'[scalelayer];[scalelayer]scale=iw*{shrink_percentage}/100:-1:flags=bicubic'
 
 
 def generate_layout_command_line(
     ffmpeg_file_path,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     video_file_stream_info,
     layout_video_file_path
 ):
     ' FFMPEG command line that merges camera videos into one '
+    codec, layout, shrink_percentage = layout_options
     duration = video_file_stream_info['duration']
     background_width, background_height = layout['background_dimensions']
     ffmpeg_filter = f'color=duration={duration}:s={background_width}x{background_height}:c=black'
@@ -159,7 +155,7 @@ def generate_layout_command_line(
         ffmpeg_filter += create_camera_filter_layer(stream_id, layout[camera_name])
         cmd_line += ['-i', video_camera_file_path]
 
-    ffmpeg_filter += create_scale_filter(scalar)
+    ffmpeg_filter += create_scale_filter(shrink_percentage)
 
     codec_name, codec_options = codec
     cmd_line += [
@@ -181,9 +177,7 @@ def create_layout_video_file_path(working_layout_folder_path, file_basename):
 async def create_layout_video_process(
     video_file_info,
     ffmpeg_file_path,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     working_layout_folder_path,
 ):
     ' FFMPEG process to merge camera video segments into one video segment '
@@ -194,9 +188,7 @@ async def create_layout_video_process(
     video_file_stream_info = video_file_info[1]
     cmd_line = generate_layout_command_line(
         ffmpeg_file_path,
-        codec,
-        layout,
-        scalar,
+        layout_options,
         video_file_stream_info,
         layout_video_file_path
     )
@@ -213,9 +205,7 @@ async def create_layout_video(
     video_file_info,
     ffmpeg_file_path,
     encoder_factory,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     working_layout_folder_path
 ):
     ' Create a layout video that merges all the cameras '
@@ -223,9 +213,7 @@ async def create_layout_video(
         await create_layout_video_process(
             video_file_info,
             ffmpeg_file_path,
-            codec,
-            layout,
-            scalar,
+            layout_options,
             working_layout_folder_path
         )
 
@@ -234,9 +222,7 @@ async def create_layout_videos(
     video_file_info_list,
     ffmpeg_file_path,
     encoder_factory,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     working_layout_folder_path
 ):
     ' Create multiple layout videos concurrently '
@@ -246,9 +232,7 @@ async def create_layout_videos(
                 video_file_info,
                 ffmpeg_file_path,
                 encoder_factory,
-                codec,
-                layout,
-                scalar,
+                layout_options,
                 working_layout_folder_path,
             )
             for video_file_info in video_file_info_list
@@ -292,9 +276,7 @@ async def create_video_file(
     ffprobe_file_path,
     ffmpeg_file_path,
     encoder_factory,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     input_folder_path,
     output_folder_path,
     intermediate_folder_path,
@@ -316,9 +298,7 @@ async def create_video_file(
         video_file_map.items(),
         ffmpeg_file_path,
         encoder_factory,
-        codec,
-        layout,
-        scalar,
+        layout_options,
         working_layout_folder_path
     )
     manifest_file_path = await create_file_manifest(
@@ -360,9 +340,7 @@ def yield_input_folder_paths(base_input_folder_path):
 async def create_video_files(
     ffmpeg_folder_path,
     number_of_encoders,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     base_input_folder_path,
     base_output_folder_path,
     intermediate_folder_path,
@@ -379,9 +357,7 @@ async def create_video_files(
                 ffprobe_file_path,
                 ffmpeg_file_path,
                 encoder_factory,
-                codec,
-                layout,
-                scalar,
+                layout_options,
                 input_folder_path,
                 base_output_folder_path,
                 intermediate_folder_path,
@@ -394,9 +370,7 @@ async def create_video_files(
 def extract_videos(
     ffmpeg_folder_path,
     number_of_encoders,
-    codec,
-    layout,
-    scalar,
+    layout_options,
     base_input_folder_path,
     base_output_folder_path,
     keep_temp_folder,
@@ -407,9 +381,7 @@ def extract_videos(
             create_video_files(
                 ffmpeg_folder_path,
                 number_of_encoders,
-                codec,
-                layout,
-                scalar,
+                layout_options,
                 base_input_folder_path,
                 base_output_folder_path,
                 intermediate_folder_path,

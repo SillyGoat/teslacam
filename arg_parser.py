@@ -38,6 +38,13 @@ def positive_integer(value):
     raise argparse.ArgumentTypeError(f'{value} must be a positive integer')
 
 
+def valid_percent(value):
+    percent = float(value)
+    if percent > 0 and percent <= 100:
+        return percent
+    raise argparse.ArgumentTypeError(f'{value} must be a valid percent')
+
+
 def str_to_bool(value):
     ' Validate boolean arguments '
     token = value.lower()
@@ -69,10 +76,10 @@ def get_arguments():
         type=get_codec,
     )
     parser.add_argument(
-        '--scalar',
-        default=320,
-        help='scalar multiplier relative to 4:3 ratio to size video to (uses more CPU)',
-        type=positive_integer,
+        '--shrink_percentage',
+        default=100,
+        help='Percent to shrink video to',
+        type=valid_percent,
     )
     parser.add_argument(
         '--number_of_encoders',
@@ -87,12 +94,15 @@ def get_arguments():
         type=str_to_bool,
     )
     args = parser.parse_args()
+    layout_options = (
+        args.codec,
+        dict(PYRAMID_LAYOUT),
+        args.shrink_percentage,
+    )
     return (
         args.ffmpeg_folder_path,
         args.number_of_encoders,
-        args.codec,
-        dict(PYRAMID_LAYOUT),
-        args.scalar,
+        layout_options,
         args.base_input_folder_path,
         args.base_output_folder_path,
         args.keep_temp_folder,
