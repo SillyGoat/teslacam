@@ -81,7 +81,7 @@ def get_arguments():
     layout_options = (
         args.codec,
         args.preset,
-        teslacam.create_layout(teslacam.CAMERA_NATIVE_RESOLUTION, teslacam.LAYOUT_OFFSETS[args.layout]),
+        teslacam.create_native_layout(teslacam.LAYOUT_OFFSETS[args.layout]),
         args.shrink_percentage,
     )
     return (

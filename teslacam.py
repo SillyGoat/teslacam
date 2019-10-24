@@ -22,8 +22,6 @@ logging.getLogger('asyncio').setLevel(logging.INFO)
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-CAMERA_NATIVE_RESOLUTION = (1280, 960)
-
 LAYOUT_OFFSETS = {
     'pyramid': {
         'background_dimensions': (3, 2),
@@ -92,13 +90,19 @@ CODEC_OPTIONS = {
 
 
 def create_layout(video_resolution, layout_offsets):
-    ' Create layout using video resolution and layout offsets '
+    ' Create layout using resolution and layout offsets '
     resolved_layout = {}
     width, height = video_resolution
     for camera_name, offsets in layout_offsets.items():
         x_offset, y_offset = offsets
         resolved_layout[camera_name] = (int(width * x_offset), int(height * y_offset))
     return resolved_layout
+
+
+def create_native_layout(layout_offsets):
+    ' Create layout using layout offsets '
+    CAMERA_NATIVE_RESOLUTION = (1280, 960)
+    return create_layout(CAMERA_NATIVE_RESOLUTION, layout_offsets)
 
 
 async def get_video_stream_info(ffprobe_file_path, video_file_path):
