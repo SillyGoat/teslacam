@@ -22,6 +22,84 @@ logging.getLogger('asyncio').setLevel(logging.INFO)
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
+CAMERA_NATIVE_RESOLUTION = (1280, 960)
+
+LAYOUT_OFFSETS = {
+    'pyramid': {
+        'background_dimensions': (3, 2),
+        # The key names below must match the file name suffixes for the camera data
+        'front': (1, 0),
+        'right_repeater': (0, 1),
+        'back': (1, 1),
+        'left_repeater': (2, 1),
+    },
+    'tall_diamond': {
+        'background_dimensions': (2, 3),
+        # The key names below must match the file name suffixes for the camera data
+        'front': (.5, 0),
+        'right_repeater': (0, 1),
+        'back': (.5, 2),
+        'left_repeater': (1, 1),
+    },
+    'short_diamond': {
+        'background_dimensions': (3, 2),
+        # The key names below must match the file name suffixes for the camera data
+        'front': (1, 0),
+        'right_repeater': (0, .5),
+        'back': (1, 1),
+        'left_repeater': (2, .5),
+    },
+}
+
+
+NVIDIA_PRESETS = (
+    'slow',
+    'medium',
+    'fast',
+    'hp',
+    'hq',
+    'bd',
+    'll',
+    'llhq',
+    'llhp',
+    'lossless',
+    'losslesshp',
+)
+
+LIBX265_PRESETS = (
+    'ultrafast',
+    'superfast',
+    'veryfast',
+    'faster',
+    'fast',
+    'medium',
+    'slow',
+    'slower',
+    'veryslow',
+    'placebo',
+)
+
+CODEC_OPTIONS = {
+    'hevc_nvenc': (
+        NVIDIA_PRESETS,
+        2, # Typical nvidia GPUs only support 2 simulataneous executions
+    ),
+    'libx265': (
+        LIBX265_PRESETS,
+        1, # libx265 already runs in parallel.  no need to thrash the scheduler
+    )
+}
+
+
+def create_layout(video_resolution, layout_offsets):
+    ' Create layout using video resolution and layout offsets '
+    resolved_layout = {}
+    width, height = video_resolution
+    for camera_name, offsets in layout_offsets.items():
+        x_offset, y_offset = offsets
+        resolved_layout[camera_name] = (int(width * x_offset), int(height * y_offset))
+    return resolved_layout
+
 
 async def get_video_stream_info(ffprobe_file_path, video_file_path):
     ' FFMPEG process to retrieve video metadata '
@@ -143,7 +221,7 @@ def generate_layout_command_line(
     layout_video_file_path
 ):
     ' FFMPEG command line that merges camera videos into one '
-    codec, layout, shrink_percentage = layout_options
+    codec, preset, layout, shrink_percentage = layout_options
     duration = video_file_stream_info['duration']
     background_width, background_height = layout['background_dimensions']
     ffmpeg_filter = f'color=duration={duration}:s={background_width}x{background_height}:c=black'
@@ -157,13 +235,13 @@ def generate_layout_command_line(
 
     ffmpeg_filter += create_scale_filter(shrink_percentage)
 
-    codec_name, codec_options = codec
     cmd_line += [
         '-filter_complex', ffmpeg_filter,
-        '-c:v', codec_name, *codec_options,
+        '-c:v', codec, '-preset', preset,
+        '-b:v', '8M', # pick a bitrate that's friendly to 1280x960 video
         '-r', '36',  # average frame rate based on existing tesla cam videos
-        '-v', 'error',
-        '-y',
+        '-v', 'error', # reduce output noise
+        '-y', # overwrite existing file
         layout_video_file_path,
     ]
     return cmd_line

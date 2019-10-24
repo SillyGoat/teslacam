@@ -1,41 +1,14 @@
 import argparse
 
-PYRAMID_LAYOUT = {
-    'background_dimensions': (3840, 1920),
-    # The key names below must match the file name suffixes for the camera data
-    'front': (1280, 0),
-    'right_repeater': (0, 960),
-    'back': (1280, 960),
-    'left_repeater': (2560, 960),
-}
-
-
-CODEC_OPTIONS = {
-    'hevc_nvenc': (
-        '-preset', 'slow', # slow processing
-        '-b:v', '8M', # 8 MB bitrate
-    ),
-    'libx265': (
-        '-preset', 'ultrafast', # probably faster for CPU only
-        '-b:v', '8M', # 8 MB bitrate
-    )
-}
+import teslacam
 
 
 def get_codec(value):
     ' Get proper codec options '
-    if value not in CODEC_OPTIONS:
+    if value not in teslacam.CODEC_OPTIONS:
         raise argparse.ArgumentTypeError(f'{value} is not a supported codec')
 
-    return (value, CODEC_OPTIONS[value])
-
-
-def positive_integer(value):
-    ' Validate positive value arguments '
-    positive_value = int(value)
-    if positive_value > 0:
-        return positive_value
-    raise argparse.ArgumentTypeError(f'{value} must be a positive integer')
+    return value
 
 
 def valid_percent(value):
@@ -76,16 +49,21 @@ def get_arguments():
         type=get_codec,
     )
     parser.add_argument(
+        '--preset',
+        default='slow',
+        help='preset to use for encoding',
+    )
+    parser.add_argument(
         '--shrink_percentage',
         default=100,
-        help='Percent to shrink video to',
+        help='percent to shrink video to',
         type=valid_percent,
     )
     parser.add_argument(
-        '--number_of_encoders',
-        default=2,
-        help='number of encoders to use',
-        type=positive_integer,
+        '--layout',
+        default='pyramid',
+        help='camera layout',
+        choices=teslacam.LAYOUT_OFFSETS.keys(),
     )
     parser.add_argument(
         '--keep_temp_folder',
@@ -94,14 +72,21 @@ def get_arguments():
         type=str_to_bool,
     )
     args = parser.parse_args()
+
+    presets, number_of_parallel_encoders = teslacam.CODEC_OPTIONS[args.codec]
+    if args.preset not in presets:
+        quoted_choices = [f"'{x}'" for x in presets]
+        parser.error(f'argument --preset: invalid choice: \'{args.preset}\' (choose from {", ".join(quoted_choices)})')
+
     layout_options = (
         args.codec,
-        dict(PYRAMID_LAYOUT),
+        args.preset,
+        teslacam.create_layout(teslacam.CAMERA_NATIVE_RESOLUTION, teslacam.LAYOUT_OFFSETS[args.layout]),
         args.shrink_percentage,
     )
     return (
         args.ffmpeg_folder_path,
-        args.number_of_encoders,
+        number_of_parallel_encoders,
         layout_options,
         args.base_input_folder_path,
         args.base_output_folder_path,
