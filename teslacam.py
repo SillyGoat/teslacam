@@ -409,7 +409,8 @@ def yield_input_folder_paths(base_input_folder_path):
 
 
 async def create_video_files(
-    ffmpeg_folder_path,
+    ffprobe_file_path,
+    ffmpeg_file_path,
     number_of_encoders,
     layout_options,
     base_input_folder_path,
@@ -417,9 +418,6 @@ async def create_video_files(
     intermediate_folder_path,
 ):
     ' Concurrently merge multiple folders of videos into individual continuous videos '
-    ffprobe_file_path = os.path.join(ffmpeg_folder_path, 'ffprobe.exe')
-    ffmpeg_file_path = os.path.join(ffmpeg_folder_path, 'ffmpeg.exe')
-
     acquire_encoder = asyncio.Semaphore(number_of_encoders)
     folder_paths = yield_input_folder_paths(base_input_folder_path)
     await asyncio.gather(
@@ -439,7 +437,8 @@ async def create_video_files(
 
 
 def extract_videos(
-    ffmpeg_folder_path,
+    ffprobe_file_path,
+    ffmpeg_file_path,
     number_of_encoders,
     layout_options,
     base_input_folder_path,
@@ -450,7 +449,8 @@ def extract_videos(
     def _extract(intermediate_folder_path):
         asyncio.run(
             create_video_files(
-                ffmpeg_folder_path,
+                ffprobe_file_path,
+                ffmpeg_file_path,
                 number_of_encoders,
                 layout_options,
                 base_input_folder_path,

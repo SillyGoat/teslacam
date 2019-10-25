@@ -24,16 +24,20 @@ def str_to_bool(value):
 def get_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'ffmpeg_folder_path',
-        help='full path to ffmpeg binary folder containing ffmpeg.exe and ffprobe.exe',
+        'ffprobe_file_path',
+        help='full path to ffprobe binary',
     )
     parser.add_argument(
-        'base_input_folder_path',
-        help='full path to the video folder containing dated folders',
+        'ffmpeg_file_path',
+        help='full path to ffmpeg binary',
     )
     parser.add_argument(
-        'base_output_folder_path',
-        help='full path of the output folder for merged files and intermediate folder',
+        'input_folder_path',
+        help='full path to the video folder containing timestamped folders',
+    )
+    parser.add_argument(
+        'output_folder_path',
+        help='full path of the output folder for merged files and temporary work folder',
     )
     parser.add_argument(
         '--codec',
@@ -78,10 +82,11 @@ def get_arguments():
         args.reduce,
     )
     return (
-        args.ffmpeg_folder_path,
+        args.ffprobe_file_path,
+        args.ffmpeg_file_path,
         number_of_parallel_encoders,
         layout_options,
-        args.base_input_folder_path,
-        args.base_output_folder_path,
+        args.input_folder_path,
+        args.output_folder_path,
         args.keep_temp_folder,
     )
