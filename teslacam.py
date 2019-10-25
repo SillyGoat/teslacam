@@ -292,12 +292,12 @@ async def create_layout_video_process(
 async def create_layout_video(
     video_file_info,
     ffmpeg_file_path,
-    encoder_factory,
+    acquire_encoder,
     layout_options,
     working_layout_folder_path
 ):
     ' Create a layout video that merges all the cameras '
-    async with encoder_factory.reserve_encoder():
+    async with acquire_encoder:
         await create_layout_video_process(
             video_file_info,
             ffmpeg_file_path,
@@ -309,7 +309,7 @@ async def create_layout_video(
 async def create_layout_videos(
     video_file_info_list,
     ffmpeg_file_path,
-    encoder_factory,
+    acquire_encoder,
     layout_options,
     working_layout_folder_path
 ):
@@ -319,7 +319,7 @@ async def create_layout_videos(
             create_layout_video(
                 video_file_info,
                 ffmpeg_file_path,
-                encoder_factory,
+                acquire_encoder,
                 layout_options,
                 working_layout_folder_path,
             )
@@ -363,7 +363,7 @@ async def concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output
 async def create_video_file(
     ffprobe_file_path,
     ffmpeg_file_path,
-    encoder_factory,
+    acquire_encoder,
     layout_options,
     input_folder_path,
     output_folder_path,
@@ -385,7 +385,7 @@ async def create_video_file(
     await create_layout_videos(
         video_file_map.items(),
         ffmpeg_file_path,
-        encoder_factory,
+        acquire_encoder,
         layout_options,
         working_layout_folder_path
     )
@@ -396,23 +396,6 @@ async def create_video_file(
 
     output_file_path = os.path.join(output_folder_path, f'{base_name}.mp4')
     await concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output_file_path)
-
-
-class EncoderPool:
-    def __init__(self, number_of_encoders):
-        self._current_encoder_count = number_of_encoders
-
-    @contextlib.asynccontextmanager
-    async def reserve_encoder(self):
-        ' Wait until an encoder is available '
-        try:
-            while self._current_encoder_count <= 0:
-                await asyncio.sleep(1)
-
-            self._current_encoder_count -= 1
-            yield
-        finally:
-            self._current_encoder_count += 1
 
 
 def yield_input_folder_paths(base_input_folder_path):
@@ -437,14 +420,14 @@ async def create_video_files(
     ffprobe_file_path = os.path.join(ffmpeg_folder_path, 'ffprobe.exe')
     ffmpeg_file_path = os.path.join(ffmpeg_folder_path, 'ffmpeg.exe')
 
-    encoder_factory = EncoderPool(number_of_encoders)
+    acquire_encoder = asyncio.Semaphore(number_of_encoders)
     folder_paths = yield_input_folder_paths(base_input_folder_path)
     await asyncio.gather(
         *(
             create_video_file(
                 ffprobe_file_path,
                 ffmpeg_file_path,
-                encoder_factory,
+                acquire_encoder,
                 layout_options,
                 input_folder_path,
                 base_output_folder_path,
