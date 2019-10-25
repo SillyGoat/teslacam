@@ -3,19 +3,12 @@ import argparse
 import teslacam
 
 
-def get_codec(value):
-    ' Get proper codec options '
-    if value not in teslacam.CODEC_OPTIONS:
-        raise argparse.ArgumentTypeError(f'{value} is not a supported codec')
-
-    return value
-
-
 def valid_percent(value):
+    ' Validate percentage values '
     percent = float(value)
     if percent > 0 and percent <= 100:
         return percent
-    raise argparse.ArgumentTypeError(f'{value} must be a valid percent')
+    raise argparse.ArgumentTypeError(f'{value} must be within 1 and 100')
 
 
 def str_to_bool(value):
@@ -46,7 +39,7 @@ def get_arguments():
         '--codec',
         default='hevc_nvenc',
         help='codec to use for encoding',
-        type=get_codec,
+        choices=teslacam.CODEC_OPTIONS.keys(),
     )
     parser.add_argument(
         '--preset',
