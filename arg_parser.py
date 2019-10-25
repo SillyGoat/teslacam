@@ -54,9 +54,9 @@ def get_arguments():
         help='preset to use for encoding',
     )
     parser.add_argument(
-        '--shrink_percentage',
-        default=100,
-        help='percent to shrink video to',
+        '--reduce',
+        default=teslacam.DONT_REDUCE,
+        help='percent to reduce video to',
         type=valid_percent,
     )
     parser.add_argument(
@@ -76,13 +76,13 @@ def get_arguments():
     presets, number_of_parallel_encoders = teslacam.CODEC_OPTIONS[args.codec]
     if args.preset not in presets:
         quoted_choices = [f"'{x}'" for x in presets]
-        parser.error(f'argument --preset: invalid choice: \'{args.preset}\' (choose from {", ".join(quoted_choices)})')
+        parser.error(f"argument --preset: invalid choice: '{args.preset}' (choose from {', '.join(quoted_choices)})")
 
     layout_options = (
         args.codec,
         args.preset,
         teslacam.create_native_layout(teslacam.LAYOUT_OFFSETS[args.layout]),
-        args.shrink_percentage,
+        args.reduce,
     )
     return (
         args.ffmpeg_folder_path,

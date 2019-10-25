@@ -22,33 +22,37 @@ logging.getLogger('asyncio').setLevel(logging.INFO)
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
+# Except for background, the key names must match the file name suffixes for the camera data
 LAYOUT_OFFSETS = {
     'pyramid': {
-        'background_dimensions': (3, 2),
-        # The key names below must match the file name suffixes for the camera data
+        'background': (3, 2),
         'front': (1, 0),
         'right_repeater': (0, 1),
         'back': (1, 1),
         'left_repeater': (2, 1),
     },
     'tall_diamond': {
-        'background_dimensions': (2, 3),
-        # The key names below must match the file name suffixes for the camera data
+        'background': (2, 3),
         'front': (.5, 0),
         'right_repeater': (0, 1),
         'back': (.5, 2),
         'left_repeater': (1, 1),
     },
     'short_diamond': {
-        'background_dimensions': (3, 2),
-        # The key names below must match the file name suffixes for the camera data
+        'background': (3, 2),
         'front': (1, 0),
         'right_repeater': (0, .5),
         'back': (1, 1),
         'left_repeater': (2, .5),
     },
+    'cross': {
+        'background': (3, 3),
+        'front': (1, 0),
+        'right_repeater': (0, 1),
+        'back': (1, 2),
+        'left_repeater': (2, 1),
+    }
 }
-
 
 NVIDIA_PRESETS = (
     'slow',
@@ -93,9 +97,9 @@ def create_layout(video_resolution, layout_offsets):
     ' Create layout using resolution and layout offsets '
     resolved_layout = {}
     width, height = video_resolution
-    for camera_name, offsets in layout_offsets.items():
+    for layer_name, offsets in layout_offsets.items():
         x_offset, y_offset = offsets
-        resolved_layout[camera_name] = (int(width * x_offset), int(height * y_offset))
+        resolved_layout[layer_name] = (int(width * x_offset), int(height * y_offset))
     return resolved_layout
 
 
@@ -210,12 +214,14 @@ def create_camera_filter_layer(stream_id, location):
         f'[layer{stream_id}][camera{stream_id}]overlay=eof_action=pass:repeatlast=0:x={x_offset}:y={y_offset}'
 
 
-def create_scale_filter(shrink_percentage):
+DONT_REDUCE = 100
+
+def create_scale_filter(reduce_percentage):
     ' Create a scale filter '
-    if shrink_percentage == 100:
+    if reduce_percentage == DONT_REDUCE:
         return ''
 
-    return f'[scalelayer];[scalelayer]scale=iw*{shrink_percentage}/100:-1:flags=bicubic'
+    return f'[scalelayer];[scalelayer]scale=iw*{reduce_percentage}/100:-1:flags=bicubic'
 
 
 def generate_layout_command_line(
@@ -225,19 +231,19 @@ def generate_layout_command_line(
     layout_video_file_path
 ):
     ' FFMPEG command line that merges camera videos into one '
-    codec, preset, layout, shrink_percentage = layout_options
+    codec, preset, layout, reduce_percentage = layout_options
     duration = video_file_stream_info['duration']
-    background_width, background_height = layout['background_dimensions']
+    background_width, background_height = layout['background']
     ffmpeg_filter = f'color=duration={duration}:s={background_width}x{background_height}:c=black'
 
     video_cameras = video_file_stream_info['cameras']
     cmd_line = [ffmpeg_file_path]
     for stream_id, camera_info in enumerate(video_cameras.items()):
-        camera_name, video_camera_file_path = camera_info
-        ffmpeg_filter += create_camera_filter_layer(stream_id, layout[camera_name])
+        layer_name, video_camera_file_path = camera_info
+        ffmpeg_filter += create_camera_filter_layer(stream_id, layout[layer_name])
         cmd_line += ['-i', video_camera_file_path]
 
-    ffmpeg_filter += create_scale_filter(shrink_percentage)
+    ffmpeg_filter += create_scale_filter(reduce_percentage)
 
     cmd_line += [
         '-filter_complex', ffmpeg_filter,
