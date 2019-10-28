@@ -23,9 +23,6 @@ logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
 LOGGER = logging.getLogger('teslacam')
 logging.getLogger('asyncio').setLevel(logging.INFO)
 
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
 
 def create_layout(video_resolution, layout_offsets):
     ' Create layout using resolution and layout offsets '
