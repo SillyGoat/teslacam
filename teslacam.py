@@ -378,7 +378,7 @@ def handle_exception(exception):
 
 @handle_exception.register(KeyboardInterrupt)
 def _(_):
-    LOGGER.info('keyboard interrupt received.  cancelling jobs...')
+    LOGGER.info('keyboard interrupt received.  waiting for jobs to finish...')
     wait_for_process_terminate()
 
 
@@ -409,7 +409,7 @@ def extract_videos(
                 base_output_folder_path,
                 intermediate_folder_path,
             )
-        except BaseException:
+        except Exception:
             await shutdown()
             raise
 
