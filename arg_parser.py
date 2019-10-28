@@ -1,7 +1,7 @@
 import argparse
 
+import constants
 import teslacam
-
 
 def valid_percent(value):
     ' Validate percentage values '
@@ -43,7 +43,7 @@ def get_arguments():
         '--codec',
         default='hevc_nvenc',
         help='codec to use for encoding',
-        choices=teslacam.CODEC_OPTIONS.keys(),
+        choices=constants.CODEC_OPTIONS.keys(),
     )
     parser.add_argument(
         '--preset',
@@ -52,7 +52,7 @@ def get_arguments():
     )
     parser.add_argument(
         '--reduce',
-        default=teslacam.DONT_REDUCE,
+        default=constants.DONT_REDUCE,
         help='percent to reduce video to',
         type=valid_percent,
     )
@@ -60,7 +60,7 @@ def get_arguments():
         '--layout',
         default='pyramid',
         help='camera layout',
-        choices=teslacam.LAYOUT_OFFSETS.keys(),
+        choices=constants.LAYOUT_OFFSETS.keys(),
     )
     parser.add_argument(
         '--keep_temp_folder',
@@ -70,7 +70,7 @@ def get_arguments():
     )
     args = parser.parse_args()
 
-    presets, number_of_parallel_encoders = teslacam.CODEC_OPTIONS[args.codec]
+    presets, number_of_parallel_encoders = constants.CODEC_OPTIONS[args.codec]
     if args.preset not in presets:
         quoted_choices = [f"'{x}'" for x in presets]
         parser.error(f"argument --preset: invalid choice: '{args.preset}' (choose from {', '.join(quoted_choices)})")
@@ -78,7 +78,7 @@ def get_arguments():
     layout_options = (
         args.codec,
         args.preset,
-        teslacam.create_native_layout(teslacam.LAYOUT_OFFSETS[args.layout]),
+        teslacam.create_native_layout(constants.LAYOUT_OFFSETS[args.layout]),
         args.reduce,
     )
     return (

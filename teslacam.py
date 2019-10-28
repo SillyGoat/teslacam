@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import contextlib
+import functools
 import json
 import logging
 import os
@@ -10,9 +11,12 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import timeit
 
 import arg_parser
+import asyncio_subprocess
+import constants
 import time_duration
 
 logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
@@ -21,76 +25,6 @@ logging.getLogger('asyncio').setLevel(logging.INFO)
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-# Except for background, the key names must match the file name suffixes for the camera data
-LAYOUT_OFFSETS = {
-    'pyramid': {
-        'background': (3, 2),
-        'front': (1, 0),
-        'right_repeater': (0, 1),
-        'back': (1, 1),
-        'left_repeater': (2, 1),
-    },
-    'tall_diamond': {
-        'background': (2, 3),
-        'front': (.5, 0),
-        'right_repeater': (0, 1),
-        'back': (.5, 2),
-        'left_repeater': (1, 1),
-    },
-    'short_diamond': {
-        'background': (3, 2),
-        'front': (1, 0),
-        'right_repeater': (0, .5),
-        'back': (1, 1),
-        'left_repeater': (2, .5),
-    },
-    'cross': {
-        'background': (3, 3),
-        'front': (1, 0),
-        'right_repeater': (0, 1),
-        'back': (1, 2),
-        'left_repeater': (2, 1),
-    }
-}
-
-NVIDIA_PRESETS = (
-    'slow',
-    'medium',
-    'fast',
-    'hp',
-    'hq',
-    'bd',
-    'll',
-    'llhq',
-    'llhp',
-    'lossless',
-    'losslesshp',
-)
-
-LIBX265_PRESETS = (
-    'ultrafast',
-    'superfast',
-    'veryfast',
-    'faster',
-    'fast',
-    'medium',
-    'slow',
-    'slower',
-    'veryslow',
-    'placebo',
-)
-
-CODEC_OPTIONS = {
-    'hevc_nvenc': (
-        NVIDIA_PRESETS,
-        2, # Typical nvidia GPUs only support 2 simulataneous executions
-    ),
-    'libx265': (
-        LIBX265_PRESETS,
-        1, # libx265 already runs in parallel.  no need to thrash the scheduler
-    )
-}
 
 
 def create_layout(video_resolution, layout_offsets):
@@ -120,19 +54,9 @@ async def get_video_stream_info(ffprobe_file_path, video_file_path):
         video_file_path,
     ]
     LOGGER.info('gather video stream info from %s', video_file_path)
-    proc = await asyncio.create_subprocess_exec(
-        *ffprobe_cmd_line,
-        stdout=asyncio.subprocess.PIPE
-    )
-    await proc.wait()
+    data = await asyncio_subprocess.check_output(ffprobe_cmd_line)
     LOGGER.info('completed gathering video stream info from %s', video_file_path)
-    if proc.returncode:
-        raise subprocess.CalledProcessError(
-            proc.returncode,
-            cmd=' '.join(ffprobe_cmd_line)
-        )
 
-    data = await proc.stdout.read()
     return json.loads(data)['streams'][0]
 
 
@@ -214,11 +138,9 @@ def create_camera_filter_layer(stream_id, location):
         f'[layer{stream_id}][camera{stream_id}]overlay=eof_action=pass:repeatlast=0:x={x_offset}:y={y_offset}'
 
 
-DONT_REDUCE = 100
-
 def create_scale_filter(reduce_percentage):
     ' Create a scale filter '
-    if reduce_percentage == DONT_REDUCE:
+    if reduce_percentage == constants.DONT_REDUCE:
         return ''
 
     return f'[scalelayer];[scalelayer]scale=iw*{reduce_percentage}/100:-1:flags=bicubic'
@@ -281,11 +203,7 @@ async def create_layout_video_process(
         layout_video_file_path
     )
     LOGGER.info('creating layout video %s', layout_video_file_path)
-    proc = await asyncio.create_subprocess_exec(*cmd_line)
-    await proc.wait()
-    if proc.returncode:
-        raise subprocess.CalledProcessError(proc.returncode, cmd=' '.join(cmd_line))
-
+    await asyncio_subprocess.check_call(cmd_line)
     LOGGER.info('finished layout video %s', layout_video_file_path)
 
 
@@ -353,10 +271,7 @@ async def concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output
         output_file_path,  # full path to output file
     ]
     LOGGER.info('create merge process for %s', output_file_path)
-    proc = await asyncio.create_subprocess_exec(*cmd_line)
-    await proc.wait()
-    if proc.returncode:
-        raise subprocess.CalledProcessError(proc.returncode, cmd=' '.join(cmd_line))
+    await asyncio_subprocess.check_call(cmd_line)
     LOGGER.info('completed merge process for %s', output_file_path)
 
 
@@ -436,6 +351,43 @@ async def create_video_files(
     )
 
 
+async def shutdown():
+    ''' Cleanup tasks '''
+    LOGGER.info('cancel outstanding tasks')
+    non_current_tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+
+    for non_current_task in non_current_tasks:
+        non_current_task.cancel()
+
+    LOGGER.info(f'cancelling {len(non_current_tasks)} outstanding tasks')
+    # Absorb asyncio.exceptions.CancelledError by setting return_exceptions to True
+    await asyncio.gather(*non_current_tasks, return_exceptions=True)
+    LOGGER.info('tasks cancelled')
+
+
+def wait_for_process_terminate():
+    ' Wait for processes to terminate '
+    time.sleep(2)
+
+
+@functools.singledispatch
+def handle_exception(exception):
+    ' Exception handler '
+    pass
+
+
+@handle_exception.register(KeyboardInterrupt)
+def _(_):
+    LOGGER.info('keyboard interrupt receieved.  cancelling jobs...')
+    wait_for_process_terminate()
+
+
+@handle_exception.register(Exception)
+def _(exception):
+    wait_for_process_terminate()
+    raise exception
+
+
 def extract_videos(
     ffprobe_file_path,
     ffmpeg_file_path,
@@ -446,9 +398,9 @@ def extract_videos(
     keep_temp_folder,
 ):
     ' Extract videos from a folder using a temporary work area '
-    def _extract(intermediate_folder_path):
-        asyncio.run(
-            create_video_files(
+    async def _extract(intermediate_folder_path):
+        try:
+            await create_video_files(
                 ffprobe_file_path,
                 ffmpeg_file_path,
                 number_of_encoders,
@@ -457,14 +409,19 @@ def extract_videos(
                 base_output_folder_path,
                 intermediate_folder_path,
             )
-        )
+        except BaseException:
+            await shutdown()
+            raise
 
     if keep_temp_folder:
         intermediate_folder_path = tempfile.mkdtemp(dir=base_output_folder_path)
-        _extract(intermediate_folder_path)
+        asyncio.run(_extract(intermediate_folder_path))
     else:
         with tempfile.TemporaryDirectory(dir=base_output_folder_path) as intermediate_folder_path:
-            _extract(intermediate_folder_path)
+            try:
+                asyncio.run(_extract(intermediate_folder_path))
+            except BaseException as exception:
+                handle_exception(exception)
 
 
 def main():
