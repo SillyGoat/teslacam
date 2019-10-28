@@ -47,8 +47,7 @@ async def get_video_stream_info(ffprobe_file_path, video_file_path):
         '-v', 'error',
         '-show_entries', 'stream=duration',
         '-print_format', 'json',
-        '-i',
-        video_file_path,
+        '-i', video_file_path,
     ]
     LOGGER.info('gather video stream info from %s', video_file_path)
     data = await asyncio_subprocess.check_output(ffprobe_cmd_line)
