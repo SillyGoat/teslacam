@@ -378,7 +378,7 @@ def handle_exception(exception):
 
 @handle_exception.register(KeyboardInterrupt)
 def _(_):
-    LOGGER.info('keyboard interrupt receieved.  cancelling jobs...')
+    LOGGER.info('keyboard interrupt received.  cancelling jobs...')
     wait_for_process_terminate()
 
 
