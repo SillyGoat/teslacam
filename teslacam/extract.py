@@ -363,7 +363,7 @@ def extract_videos(
         keep_temp_folder,
 ):
     ' Extract videos from a folder using a temporary work area '
-    async def _extract(intermediate_folder_path):
+    async def _async_extract(intermediate_folder_path):
         try:
             await create_video_files(
                 ffmpeg_paths,
@@ -377,13 +377,18 @@ def extract_videos(
             await shutdown()
             raise
 
+
+    def _extract(intermediate_folder_path):
+        try:
+            asyncio.run(_async_extract(intermediate_folder_path))
+        # pylint: disable=broad-except
+        except BaseException as exception:
+            handle_exception(exception)
+
+
     if keep_temp_folder:
         intermediate_folder_path = tempfile.mkdtemp(dir=base_folder_paths.output)
-        asyncio.run(_extract(intermediate_folder_path))
+        _extract(intermediate_folder_path)
     else:
         with tempfile.TemporaryDirectory(dir=base_folder_paths.output) as intermediate_folder_path:
-            try:
-                asyncio.run(_extract(intermediate_folder_path))
-            # pylint: disable=broad-except
-            except BaseException as exception:
-                handle_exception(exception)
+            _extract(intermediate_folder_path)

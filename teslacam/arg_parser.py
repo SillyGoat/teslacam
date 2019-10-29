@@ -15,13 +15,16 @@ def valid_percent(value):
 def str_to_bool(value):
     ' Validate boolean arguments '
     token = value.lower()
-    if token in ['true', '1']:
+    true_values = ['t', 'true', '1']
+    if token in true_values:
         return True
 
-    if token in ['false', '0']:
+    false_values = ['f', 'false', '0']
+    if token in false_values:
         return False
 
-    raise argparse.ArgumentTypeError(f'{value} must be a boolean')
+    quoted_choices = ', '.join([f"'{choice}'" for choice in true_values + false_values])
+    raise argparse.ArgumentTypeError(f"invalid choice '{value}' (choose from {quoted_choices})")
 
 
 def get_arguments():
