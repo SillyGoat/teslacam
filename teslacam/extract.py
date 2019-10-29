@@ -15,7 +15,7 @@ from . import custom_types
 
 logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
 LOGGER = logging.getLogger('teslacam')
-logging.getLogger('asyncio').setLevel(logging.INFO)
+logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
 
 async def get_video_stream_info(ffprobe_file_path, video_file_path):
@@ -335,12 +335,13 @@ async def shutdown():
 
 def wait_for_process_terminate():
     ' Wait for processes to terminate '
-    time.sleep(2)
+    time.sleep(4)
 
 
 @functools.singledispatch
 def handle_exception(_):
     ' Exception handler '
+    return
 
 
 @handle_exception.register(KeyboardInterrupt)
