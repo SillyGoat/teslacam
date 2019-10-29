@@ -12,6 +12,11 @@ def valid_percent(value):
     raise argparse.ArgumentTypeError(f'{value} must be within 1 and 100')
 
 
+def quoted_choices(choices):
+    ' Return a string of quoted choices '
+    return ', '.join([f"'{choice}'" for choice in choices])
+
+
 def str_to_bool(value):
     ' Validate boolean arguments '
     token = value.lower()
@@ -23,8 +28,8 @@ def str_to_bool(value):
     if token in false_values:
         return False
 
-    quoted_choices = ', '.join([f"'{choice}'" for choice in true_values + false_values])
-    raise argparse.ArgumentTypeError(f"invalid choice '{value}' (choose from {quoted_choices})")
+    choices = quoted_choices(true_values + false_values)
+    raise argparse.ArgumentTypeError(f"invalid choice '{value}' (choose from {choices})")
 
 
 def get_arguments():
@@ -52,8 +57,9 @@ def get_arguments():
         help='codec to use for encoding',
         choices=constants.CODEC_OPTIONS.keys(),
     )
+    preset_token = '--preset'
     parser.add_argument(
-        '--preset',
+        preset_token,
         default='slow',
         help='preset to use for encoding',
     )
@@ -77,11 +83,11 @@ def get_arguments():
     )
     args = parser.parse_args()
 
-    presets, _ = constants.CODEC_OPTIONS[args.codec]
+    presets = constants.CODEC_OPTIONS[args.codec][0]
     if args.preset not in presets:
-        quoted_choices = ', '.join([f"'{x}'" for x in presets])
+        choices = quoted_choices(presets)
         parser.error(
-            f"argument --preset: invalid choice: '{args.preset}' (choose from {quoted_choices})"
+            f"argument {preset_token}: invalid choice: '{args.preset}' (choose from {choices})"
         )
 
     return (

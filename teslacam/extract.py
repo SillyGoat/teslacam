@@ -320,7 +320,7 @@ async def create_video_files(
 
 
 async def shutdown():
-    ''' Cleanup tasks '''
+    ' Cleanup tasks '
     LOGGER.info('cancel outstanding tasks')
     non_current_tasks = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
 
