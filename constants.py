@@ -1,3 +1,7 @@
+' Constants '
+
+from . import layout
+
 # Except for background, the key names must match the file name suffixes for the camera data
 LAYOUT_OFFSETS = {
     'pyramid': {
@@ -28,6 +32,10 @@ LAYOUT_OFFSETS = {
         'back': (1, 2),
         'left_repeater': (2, 1),
     }
+}
+
+LAYOUT = {
+    name: layout.create_native_layout(offsets) for name, offsets in LAYOUT_OFFSETS.items()
 }
 
 NVIDIA_PRESETS = (

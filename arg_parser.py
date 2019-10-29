@@ -1,12 +1,13 @@
+' Argument parser '
 import argparse
 
-import constants
-import teslacam
+from . import constants
+from . import custom_types
 
 def valid_percent(value):
     ' Validate percentage values '
     percent = float(value)
-    if percent > 0 and percent <= 100:
+    if 0 < percent <= 100:
         return percent
     raise argparse.ArgumentTypeError(f'{value} must be within 1 and 100')
 
@@ -16,12 +17,15 @@ def str_to_bool(value):
     token = value.lower()
     if token in ['true', '1']:
         return True
-    elif token in ['false', '0']:
+
+    if token in ['false', '0']:
         return False
+
     raise argparse.ArgumentTypeError(f'{value} must be a boolean')
 
 
 def get_arguments():
+    ' Parse command line arguments '
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'ffprobe_file_path',
@@ -70,23 +74,27 @@ def get_arguments():
     )
     args = parser.parse_args()
 
-    presets, number_of_parallel_encoders = constants.CODEC_OPTIONS[args.codec]
+    presets, _ = constants.CODEC_OPTIONS[args.codec]
     if args.preset not in presets:
-        quoted_choices = [f"'{x}'" for x in presets]
-        parser.error(f"argument --preset: invalid choice: '{args.preset}' (choose from {', '.join(quoted_choices)})")
+        quoted_choices = ', '.join([f"'{x}'" for x in presets])
+        parser.error(
+            f"argument --preset: invalid choice: '{args.preset}' (choose from {quoted_choices})"
+        )
 
-    layout_options = (
-        args.codec,
-        args.preset,
-        teslacam.create_native_layout(constants.LAYOUT_OFFSETS[args.layout]),
-        args.reduce,
-    )
     return (
-        args.ffprobe_file_path,
-        args.ffmpeg_file_path,
-        number_of_parallel_encoders,
-        layout_options,
-        args.input_folder_path,
-        args.output_folder_path,
+        custom_types.FFMpegPaths(
+            args.ffprobe_file_path,
+            args.ffmpeg_file_path,
+        ),
+        custom_types.LayoutOptions(
+            args.codec,
+            args.preset,
+            args.layout,
+            args.reduce,
+        ),
+        custom_types.BaseFolderPaths(
+            args.input_folder_path,
+            args.output_folder_path,
+        ),
         args.keep_temp_folder,
     )

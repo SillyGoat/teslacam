@@ -1,3 +1,4 @@
+' Asynchronous subprocess helpers '
 import asyncio
 import logging
 import subprocess
@@ -13,7 +14,7 @@ async def _check_output(cmd_line, stdout):
     try:
         await proc.wait()
         if proc.returncode:
-            LOGGER.error(f'process {proc} failed')
+            LOGGER.error('process %s failed', proc)
             raise subprocess.CalledProcessError(proc.returncode, cmd=' '.join(cmd_line))
 
         if proc.stdout:
@@ -22,7 +23,7 @@ async def _check_output(cmd_line, stdout):
         return None
 
     except asyncio.CancelledError:
-        LOGGER.warning(f'terminating process {proc}')
+        LOGGER.warning('terminating process %s', proc)
         proc.terminate()
         raise
 

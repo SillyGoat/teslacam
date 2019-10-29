@@ -1,4 +1,6 @@
-from unit import Unit, Units
+' Time Conversion '
+
+from .unit import Unit, Units
 
 def seconds_to_units(seconds):
     ' Convert seconds into days, hours, minutes, seconds '

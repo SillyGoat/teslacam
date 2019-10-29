@@ -1,43 +1,21 @@
-# pylint: disable=line-too-long
 ' Tesla camera video post-processing module '
-import argparse
 import asyncio
-import contextlib
 import functools
 import json
 import logging
 import os
 import re
 import subprocess
-import sys
 import tempfile
 import time
-import timeit
 
-import arg_parser
-import asyncio_subprocess
-import constants
-import time_duration
+from . import asyncio_subprocess
+from . import constants
+from . import custom_types
 
 logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
 LOGGER = logging.getLogger('teslacam')
 logging.getLogger('asyncio').setLevel(logging.INFO)
-
-
-def create_layout(video_resolution, layout_offsets):
-    ' Create layout using resolution and layout offsets '
-    resolved_layout = {}
-    width, height = video_resolution
-    for layer_name, offsets in layout_offsets.items():
-        x_offset, y_offset = offsets
-        resolved_layout[layer_name] = (int(width * x_offset), int(height * y_offset))
-    return resolved_layout
-
-
-def create_native_layout(layout_offsets):
-    ' Create layout using layout offsets '
-    CAMERA_NATIVE_RESOLUTION = (1280, 960)
-    return create_layout(CAMERA_NATIVE_RESOLUTION, layout_offsets)
 
 
 async def get_video_stream_info(ffprobe_file_path, video_file_path):
@@ -70,10 +48,10 @@ REGEX_VIDEO_FILENAME = re.compile(
 
 
 async def populate_video_map(
-    video_map,
-    ffprobe_file_path,
-    input_folder_path,
-    video_filename
+        video_map,
+        ffprobe_file_path,
+        input_folder_path,
+        video_filename
 ):
     ' Retrieve video metadata from raw video files '
     video_file_path = os.path.join(input_folder_path, video_filename)
@@ -102,9 +80,8 @@ async def populate_video_map(
 
 
 async def create_video_file_map(
-    ffprobe_file_path,
-    input_folder_path,
-    output_folder_path
+        ffprobe_file_path,
+        input_folder_path
 ):
     ' Enumerates video folder to find files to layout and concatenate '
     video_filenames = os.listdir(input_folder_path)
@@ -131,7 +108,8 @@ def create_camera_filter_layer(stream_id, location):
     x_offset, y_offset = location
     return f'[layer{stream_id}];' + \
         f'[{stream_id}:v]setpts=PTS-STARTPTS[camera{stream_id}];' + \
-        f'[layer{stream_id}][camera{stream_id}]overlay=eof_action=pass:repeatlast=0:x={x_offset}:y={y_offset}'
+        f'[layer{stream_id}][camera{stream_id}]' + \
+            f'overlay=eof_action=pass:repeatlast=0:x={x_offset}:y={y_offset}'
 
 
 def create_scale_filter(reduce_percentage):
@@ -143,29 +121,29 @@ def create_scale_filter(reduce_percentage):
 
 
 def generate_layout_command_line(
-    ffmpeg_file_path,
-    layout_options,
-    video_file_stream_info,
-    layout_video_file_path
+        ffmpeg_file_path,
+        layout_options,
+        video_file_stream_info,
+        layout_video_file_path
 ):
     ' FFMPEG command line that merges camera videos into one '
-    codec, preset, layout, reduce_percentage = layout_options
-    duration = video_file_stream_info['duration']
+    layout = constants.LAYOUT[layout_options.layout]
     background_width, background_height = layout['background']
-    ffmpeg_filter = f'color=duration={duration}:s={background_width}x{background_height}:c=black'
+    ffmpeg_filter = f'color=duration={video_file_stream_info["duration"]}:' + \
+                    f's={background_width}x{background_height}:' + \
+                    'c=black'
 
-    video_cameras = video_file_stream_info['cameras']
     cmd_line = [ffmpeg_file_path]
-    for stream_id, camera_info in enumerate(video_cameras.items()):
+    for stream_id, camera_info in enumerate(video_file_stream_info['cameras'].items()):
         layer_name, video_camera_file_path = camera_info
         ffmpeg_filter += create_camera_filter_layer(stream_id, layout[layer_name])
         cmd_line += ['-i', video_camera_file_path]
 
-    ffmpeg_filter += create_scale_filter(reduce_percentage)
+    ffmpeg_filter += create_scale_filter(layout_options.reduce)
 
     cmd_line += [
         '-filter_complex', ffmpeg_filter,
-        '-c:v', codec, '-preset', preset,
+        '-c:v', layout_options.codec, '-preset', layout_options.preset,
         '-b:v', '8M', # pick a bitrate that's friendly to 1280x960 video
         '-r', '36',  # average frame rate based on existing tesla cam videos
         '-v', 'error', # reduce output noise
@@ -181,10 +159,10 @@ def create_layout_video_file_path(working_layout_folder_path, file_basename):
 
 
 async def create_layout_video_process(
-    video_file_info,
-    ffmpeg_file_path,
-    layout_options,
-    working_layout_folder_path,
+        video_file_info,
+        ffmpeg_file_path,
+        layout_options,
+        working_layout_folder_path,
 ):
     ' FFMPEG process to merge camera video segments into one video segment '
     layout_video_file_path = create_layout_video_file_path(
@@ -204,11 +182,11 @@ async def create_layout_video_process(
 
 
 async def create_layout_video(
-    video_file_info,
-    ffmpeg_file_path,
-    acquire_encoder,
-    layout_options,
-    working_layout_folder_path
+        video_file_info,
+        ffmpeg_file_path,
+        acquire_encoder,
+        layout_options,
+        working_layout_folder_path
 ):
     ' Create a layout video that merges all the cameras '
     async with acquire_encoder:
@@ -221,11 +199,11 @@ async def create_layout_video(
 
 
 async def create_layout_videos(
-    video_file_info_list,
-    ffmpeg_file_path,
-    acquire_encoder,
-    layout_options,
-    working_layout_folder_path
+        video_file_info_list,
+        ffmpeg_file_path,
+        acquire_encoder,
+        layout_options,
+        working_layout_folder_path
 ):
     ' Create multiple layout videos concurrently '
     await asyncio.gather(
@@ -248,7 +226,8 @@ async def create_file_manifest(video_file_map, working_layout_folder_path):
     with open(manifest_file_path, 'w') as manifest_file:
         for file_basename in sorted(video_file_map.keys()):
             layout_video_file_path = create_layout_video_file_path(
-                working_layout_folder_path, file_basename
+                working_layout_folder_path,
+                file_basename
             )
             print(f"file '{layout_video_file_path}'", file=manifest_file)
     return manifest_file_path
@@ -272,30 +251,26 @@ async def concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output
 
 
 async def create_video_file(
-    ffprobe_file_path,
-    ffmpeg_file_path,
-    acquire_encoder,
-    layout_options,
-    input_folder_path,
-    output_folder_path,
-    intermediate_folder_path,
+        ffmpeg_paths,
+        acquire_encoder,
+        layout_options,
+        working_folder_paths,
 ):
     ' Merge a single folder of videos into one continuous video '
     video_file_map = await create_video_file_map(
-        ffprobe_file_path,
-        input_folder_path,
-        output_folder_path
+        ffmpeg_paths.ffprobe,
+        working_folder_paths.input
     )
     if not video_file_map:
         return
 
-    base_name = os.path.basename(input_folder_path)
-    working_layout_folder_path = os.path.join(intermediate_folder_path, base_name)
+    base_name = os.path.basename(working_folder_paths.input)
+    working_layout_folder_path = os.path.join(working_folder_paths.intermediate, base_name)
     os.makedirs(working_layout_folder_path)
 
     await create_layout_videos(
         video_file_map.items(),
-        ffmpeg_file_path,
+        ffmpeg_paths.ffmpeg,
         acquire_encoder,
         layout_options,
         working_layout_folder_path
@@ -305,8 +280,8 @@ async def create_video_file(
         working_layout_folder_path
     )
 
-    output_file_path = os.path.join(output_folder_path, f'{base_name}.mp4')
-    await concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output_file_path)
+    output_file_path = os.path.join(working_folder_paths.output, f'{base_name}.mp4')
+    await concatenate_layout_videos(ffmpeg_paths.ffmpeg, manifest_file_path, output_file_path)
 
 
 def yield_input_folder_paths(base_input_folder_path):
@@ -320,27 +295,24 @@ def yield_input_folder_paths(base_input_folder_path):
 
 
 async def create_video_files(
-    ffprobe_file_path,
-    ffmpeg_file_path,
-    number_of_encoders,
-    layout_options,
-    base_input_folder_path,
-    base_output_folder_path,
-    intermediate_folder_path,
+        ffmpeg_paths,
+        layout_options,
+        working_folder_paths,
 ):
     ' Concurrently merge multiple folders of videos into individual continuous videos '
-    acquire_encoder = asyncio.Semaphore(number_of_encoders)
-    folder_paths = yield_input_folder_paths(base_input_folder_path)
+    acquire_encoder = asyncio.Semaphore(constants.CODEC_OPTIONS[layout_options.codec][1])
+    folder_paths = yield_input_folder_paths(working_folder_paths.input)
     await asyncio.gather(
         *(
             create_video_file(
-                ffprobe_file_path,
-                ffmpeg_file_path,
+                ffmpeg_paths,
                 acquire_encoder,
                 layout_options,
-                input_folder_path,
-                base_output_folder_path,
-                intermediate_folder_path,
+                custom_types.WorkingFolderPaths(
+                    input_folder_path,
+                    working_folder_paths.output,
+                    working_folder_paths.intermediate,
+                )
             )
             for input_folder_path in folder_paths
         )
@@ -355,7 +327,7 @@ async def shutdown():
     for non_current_task in non_current_tasks:
         non_current_task.cancel()
 
-    LOGGER.info(f'cancelling {len(non_current_tasks)} outstanding tasks')
+    LOGGER.info('cancelling %s outstanding tasks', len(non_current_tasks))
     # Absorb asyncio.exceptions.CancelledError by setting return_exceptions to True
     await asyncio.gather(*non_current_tasks, return_exceptions=True)
     LOGGER.info('tasks cancelled')
@@ -367,9 +339,8 @@ def wait_for_process_terminate():
 
 
 @functools.singledispatch
-def handle_exception(exception):
+def handle_exception(_):
     ' Exception handler '
-    pass
 
 
 @handle_exception.register(KeyboardInterrupt)
@@ -385,52 +356,33 @@ def _(exception):
 
 
 def extract_videos(
-    ffprobe_file_path,
-    ffmpeg_file_path,
-    number_of_encoders,
-    layout_options,
-    base_input_folder_path,
-    base_output_folder_path,
-    keep_temp_folder,
+        ffmpeg_paths,
+        layout_options,
+        base_folder_paths,
+        keep_temp_folder,
 ):
     ' Extract videos from a folder using a temporary work area '
     async def _extract(intermediate_folder_path):
         try:
             await create_video_files(
-                ffprobe_file_path,
-                ffmpeg_file_path,
-                number_of_encoders,
+                ffmpeg_paths,
                 layout_options,
-                base_input_folder_path,
-                base_output_folder_path,
-                intermediate_folder_path,
+                custom_types.WorkingFolderPaths(
+                    *base_folder_paths,
+                    intermediate_folder_path,
+                ),
             )
         except Exception:
             await shutdown()
             raise
 
     if keep_temp_folder:
-        intermediate_folder_path = tempfile.mkdtemp(dir=base_output_folder_path)
+        intermediate_folder_path = tempfile.mkdtemp(dir=base_folder_paths.output)
         asyncio.run(_extract(intermediate_folder_path))
     else:
-        with tempfile.TemporaryDirectory(dir=base_output_folder_path) as intermediate_folder_path:
+        with tempfile.TemporaryDirectory(dir=base_folder_paths.output) as intermediate_folder_path:
             try:
                 asyncio.run(_extract(intermediate_folder_path))
+            # pylint: disable=broad-except
             except BaseException as exception:
                 handle_exception(exception)
-
-
-def main():
-    ' Main entry point '
-    extract_videos_arguments = arg_parser.get_arguments()
-    execution_time = timeit.timeit(
-        lambda : extract_videos(*extract_videos_arguments),
-        setup='gc.enable()', # Re-enable garbage collection
-        number=1
-    )
-    duration = time_duration.seconds_to_units(execution_time)
-    print(f'Completed in {duration}')
-
-
-if __name__ == '__main__':
-    main()
