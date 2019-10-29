@@ -6,7 +6,7 @@ This is a very simple python 3 script to help me consolidate my Tesla's raw came
 This also makes use of nvidia video card GPUs to accelerate encoding.
 
 Help:
-python3 teslacam.py --help
+python3 teslacam --help
 
 FFMpeg download:
 https://ffmpeg.org/download.html
