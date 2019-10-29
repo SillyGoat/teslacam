@@ -20,6 +20,6 @@ def main():
         number=1
     )
     duration = time_duration.seconds_to_units(execution_time)
-    print(f'Completed in {duration}')
+    print(f'Operation finished in {duration}')
 
 main()
