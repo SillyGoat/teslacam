@@ -25,7 +25,6 @@ optional arguments:
                         camera layout
   --keep_temp_folder KEEP_TEMP_FOLDER
                         keep temporary working folder after extraction
-
 ```
 FFMpeg download:
 https://ffmpeg.org/download.html
