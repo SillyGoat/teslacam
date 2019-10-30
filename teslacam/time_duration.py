@@ -1,6 +1,6 @@
 ' Time Conversion '
 
-from .unit import Unit, Units
+from teslacam.unit import Unit, Units
 
 def seconds_to_units(seconds):
     ' Convert seconds into days, hours, minutes, seconds '
@@ -8,8 +8,8 @@ def seconds_to_units(seconds):
     hours, minutes = divmod(minutes, 60)
     days, hours = divmod(hours, 24)
     return Units(
-        Unit(int(days), 'day'),
-        Unit(int(hours), 'hour'),
-        Unit(int(minutes), 'minute'),
-        Unit(int(seconds), 'second'),
+        Unit(days, 'day'),
+        Unit(hours, 'hour'),
+        Unit(minutes, 'minute'),
+        Unit(seconds, 'second'),
     )

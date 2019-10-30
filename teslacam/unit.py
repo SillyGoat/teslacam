@@ -9,8 +9,11 @@ class Units:
         return all([True for unit in self.units if unit])
 
     def __str__(self):
-        valid_units = (str(unit) for unit in self.units if unit)
-        return ', '.join(valid_units)
+        valid_units = [str(unit) for unit in self.units if unit]
+        if valid_units:
+            return ', '.join(valid_units)
+
+        return str(self.units[-1])
 
 
 class Unit:
@@ -23,5 +26,6 @@ class Unit:
         return bool(self.value)
 
     def __str__(self):
-        suffix = 's' if self.value != 1 else ''
-        return f'{self.value} {self.value_type}{suffix}'
+        formatted_value = self.value if self.value < 1 else int(self.value)
+        suffix = 's' if formatted_value != 1 else ''
+        return f'{formatted_value} {self.value_type}{suffix}'
