@@ -1,6 +1,6 @@
 ' Constants '
 
-from . import layout
+from teslacam import layout
 
 # Except for background, the key names must match the file name suffixes for the camera data
 LAYOUT_OFFSETS = {

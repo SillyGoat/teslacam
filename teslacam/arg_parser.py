@@ -1,8 +1,8 @@
 ' Argument parser '
 import argparse
 
-from . import constants
-from . import custom_types
+from teslacam import constants
+from teslacam import custom_types
 
 def valid_percent(value):
     ' Validate percentage values '

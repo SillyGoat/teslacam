@@ -3,15 +3,15 @@ import asyncio
 import logging
 import subprocess
 
-logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
-LOGGER = logging.getLogger('asyncio_subprocess')
+LOGGER = logging.getLogger('teslacam')
 
 async def _check_output(cmd_line, stdout):
-    proc = await asyncio.create_subprocess_exec(
-        *cmd_line,
-        stdout=stdout
-    )
+    proc = None
     try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_line,
+            stdout=stdout
+        )
         await proc.wait()
         if proc.returncode:
             LOGGER.error('process %s failed', proc)
@@ -23,8 +23,11 @@ async def _check_output(cmd_line, stdout):
         return None
 
     except asyncio.CancelledError:
-        LOGGER.warning('terminating process %s', proc)
-        proc.terminate()
+        if proc:
+            LOGGER.debug('terminating process %s', proc)
+            proc.terminate()
+            await proc.wait()
+            LOGGER.debug('%s terminated', proc)
         raise
 
 

@@ -14,12 +14,18 @@ def main():
     from teslacam import time_duration
 
     extract_videos_arguments = arg_parser.get_arguments()
+    def _extract_videos():
+        try:
+            extract.extract_videos(*extract_videos_arguments)
+        except KeyboardInterrupt:
+            pass
+
     execution_time = timeit.timeit(
-        lambda: extract.extract_videos(*extract_videos_arguments),
+        _extract_videos,
         setup='gc.enable()', # Re-enable garbage collection
         number=1
     )
     duration = time_duration.seconds_to_units(execution_time)
-    print(f'Operation finished in {duration}')
+    print(f'execution time: {duration}')
 
 main()

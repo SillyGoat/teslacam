@@ -1,22 +1,26 @@
 ' Tesla camera video post-processing module '
 import asyncio
-import functools
+import collections
 import json
 import logging
 import os
 import re
 import subprocess
 import tempfile
-import time
 
-from . import asyncio_subprocess
-from . import constants
-from . import custom_types
+from teslacam import asyncio_subprocess
+from teslacam import constants
+from teslacam import custom_types
 
-logging.basicConfig(format='%(asctime)-15s %(message)s', level=logging.INFO)
 LOGGER = logging.getLogger('teslacam')
-logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
+ResourceAcquire = collections.namedtuple(
+    'ResourceAcquire',
+    [
+        'probe',
+        'encoder',
+    ]
+)
 
 async def get_video_stream_info(ffprobe_file_path, video_file_path):
     ' FFMPEG process to retrieve video metadata '
@@ -27,9 +31,9 @@ async def get_video_stream_info(ffprobe_file_path, video_file_path):
         '-print_format', 'json',
         '-i', video_file_path,
     ]
-    LOGGER.info('gather video stream info from %s', video_file_path)
+    LOGGER.debug('start gathering video stream info from %s', video_file_path)
     data = await asyncio_subprocess.check_output(ffprobe_cmd_line)
-    LOGGER.info('completed gathering video stream info from %s', video_file_path)
+    LOGGER.debug('completed gathering video stream info from %s', video_file_path)
 
     return json.loads(data)['streams'][0]
 
@@ -50,19 +54,21 @@ REGEX_VIDEO_FILENAME = re.compile(
 async def populate_video_map(
         video_map,
         ffprobe_file_path,
+        acquire_probe,
         input_folder_path,
         video_filename
 ):
     ' Retrieve video metadata from raw video files '
     video_file_path = os.path.join(input_folder_path, video_filename)
-    try:
-        video_stream_info = await get_video_stream_info(
-            ffprobe_file_path,
-            video_file_path
-        )
-    except subprocess.CalledProcessError:
-        LOGGER.warning('skip problematic video %s', video_file_path)
-        return
+    async with acquire_probe:
+        try:
+            video_stream_info = await get_video_stream_info(
+                ffprobe_file_path,
+                video_file_path
+            )
+        except subprocess.CalledProcessError:
+            LOGGER.warning('skip problematic video %s', video_file_path)
+            return
 
     match_result = re.fullmatch(REGEX_VIDEO_FILENAME, video_filename)
 
@@ -81,6 +87,7 @@ async def populate_video_map(
 
 async def create_video_file_map(
         ffprobe_file_path,
+        acquire_probe,
         input_folder_path
 ):
     ' Enumerates video folder to find files to layout and concatenate '
@@ -92,12 +99,14 @@ async def create_video_file_map(
             populate_video_map(
                 video_map,
                 ffprobe_file_path,
+                acquire_probe,
                 input_folder_path,
                 video_filename
             )
             for video_filename in video_filenames
         )
     )
+    LOGGER.info('gathered video info for %s', input_folder_path)
     return video_map
 
 
@@ -252,13 +261,14 @@ async def concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output
 
 async def create_video_file(
         ffmpeg_paths,
-        acquire_encoder,
+        resource_acquire,
         layout_options,
         working_folder_paths,
 ):
     ' Merge a single folder of videos into one continuous video '
     video_file_map = await create_video_file_map(
         ffmpeg_paths.ffprobe,
+        resource_acquire.probe,
         working_folder_paths.input
     )
     if not video_file_map:
@@ -271,7 +281,7 @@ async def create_video_file(
     await create_layout_videos(
         video_file_map.items(),
         ffmpeg_paths.ffmpeg,
-        acquire_encoder,
+        resource_acquire.encoder,
         layout_options,
         working_layout_folder_path
     )
@@ -300,13 +310,16 @@ async def create_video_files(
         working_folder_paths,
 ):
     ' Concurrently merge multiple folders of videos into individual continuous videos '
-    acquire_encoder = asyncio.Semaphore(constants.CODEC_OPTIONS[layout_options.codec][1])
-    folder_paths = yield_input_folder_paths(working_folder_paths.input)
+    # Limit resources using semaphores to stop exhaustion and thrashing
+    resource_acquire = ResourceAcquire(
+        asyncio.Semaphore(os.cpu_count()),
+        asyncio.Semaphore(constants.CODEC_OPTIONS[layout_options.codec][1]),
+    )
     await asyncio.gather(
         *(
             create_video_file(
                 ffmpeg_paths,
-                acquire_encoder,
+                resource_acquire,
                 layout_options,
                 custom_types.WorkingFolderPaths(
                     input_folder_path,
@@ -314,7 +327,7 @@ async def create_video_files(
                     working_folder_paths.intermediate,
                 )
             )
-            for input_folder_path in folder_paths
+            for input_folder_path in yield_input_folder_paths(working_folder_paths.input)
         )
     )
 
@@ -331,29 +344,6 @@ async def shutdown():
     # Absorb asyncio.exceptions.CancelledError by setting return_exceptions to True
     await asyncio.gather(*non_current_tasks, return_exceptions=True)
     LOGGER.info('tasks cancelled')
-
-
-def wait_for_process_terminate():
-    ' Wait for processes to terminate '
-    time.sleep(4)
-
-
-@functools.singledispatch
-def handle_exception(_):
-    ' Exception handler '
-    return
-
-
-@handle_exception.register(KeyboardInterrupt)
-def _(_):
-    LOGGER.info('keyboard interrupt received.  waiting for jobs to finish...')
-    wait_for_process_terminate()
-
-
-@handle_exception.register(Exception)
-def _(exception):
-    wait_for_process_terminate()
-    raise exception
 
 
 def extract_videos(
@@ -377,18 +367,9 @@ def extract_videos(
             await shutdown()
             raise
 
-
-    def _extract(intermediate_folder_path):
-        try:
-            asyncio.run(_async_extract(intermediate_folder_path))
-        # pylint: disable=broad-except
-        except BaseException as exception:
-            handle_exception(exception)
-
-
     if keep_temp_folder:
         intermediate_folder_path = tempfile.mkdtemp(dir=base_folder_paths.output)
-        _extract(intermediate_folder_path)
+        asyncio.run(_async_extract(intermediate_folder_path))
     else:
         with tempfile.TemporaryDirectory(dir=base_folder_paths.output) as intermediate_folder_path:
-            _extract(intermediate_folder_path)
+            asyncio.run(_async_extract(intermediate_folder_path))
