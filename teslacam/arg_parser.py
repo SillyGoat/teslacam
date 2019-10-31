@@ -34,7 +34,7 @@ def str_to_bool(value):
 
 def get_arguments():
     ' Parse command line arguments '
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog=__package__)
     parser.add_argument(
         'ffprobe_file_path',
         help='full path to ffprobe binary',
