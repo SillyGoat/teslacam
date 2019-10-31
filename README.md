@@ -16,7 +16,7 @@ python -m pip install teslacam
 ```
 Command line usage
 ```
->python -m teslacam --help
+python -m teslacam --help
 ```
 ```
 usage: teslacam [-h] [--codec {hevc_nvenc,libx265}] [--preset PRESET] [--reduce REDUCE] [--layout {pyramid,tall_diamond,short_diamond,cross}] [--keep_temp_folder KEEP_TEMP_FOLDER]
