@@ -47,7 +47,6 @@ from teslacam import *
 def main():
   print(f"Available layouts: {', '.join(teslacam.constants.LAYOUT.keys())}")
   print(f'Available codecs: {teslacam.constants.CODEC_OPTIONS.items()}')
-
   extract_videos(
     FFMpegPaths(
       r'some_ffmpeg_path\ffprobe.exe', # path to ffprobe
