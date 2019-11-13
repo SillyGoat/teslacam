@@ -46,7 +46,7 @@ def setup():
     try:
         setuptools.setup(
             name='teslacam',
-            version='1.0.0',
+            version='1.0.1',
             author='SillyGoat',
             author_email='fake.me.now.and.forever@gmail.com',
             description='Consolidate and format Tesla vehicle camera video data',

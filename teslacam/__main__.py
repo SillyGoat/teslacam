@@ -1,7 +1,11 @@
 ' Main entry point file '
+import logging
 import os
 import sys
 import timeit
+
+logging.basicConfig(format='%(message)s', level=logging.INFO)
+logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 
 def main():
     ' Main entry point '
