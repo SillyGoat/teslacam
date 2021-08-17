@@ -68,7 +68,7 @@ LIBX265_PRESETS = (
 CODEC_OPTIONS = {
     'hevc_nvenc': (
         NVIDIA_PRESETS,
-        2, # Typical nvidia GPUs only support 2 simulataneous executions
+        2, # Typical nvidia GPUs only support 2 simultaneous executions
     ),
     'libx265': (
         LIBX265_PRESETS,
