@@ -59,6 +59,11 @@ async def populate_video_map(
         video_filename
 ):
     ' Retrieve video metadata from raw video files '
+    match_result = re.fullmatch(REGEX_VIDEO_FILENAME, video_filename)
+    if not match_result:
+        LOGGER.info('skip %s because it does not look like a video file', video_filename)
+        return
+
     video_file_path = os.path.join(input_folder_path, video_filename)
     async with acquire_probe:
         try:
@@ -66,11 +71,18 @@ async def populate_video_map(
                 ffprobe_file_path,
                 video_file_path
             )
-        except subprocess.CalledProcessError:
-            LOGGER.warning('skip problematic video %s', video_file_path)
-            return
 
-    match_result = re.fullmatch(REGEX_VIDEO_FILENAME, video_filename)
+            if not video_stream_info:
+                LOGGER.warning('skip %s because it contains no streams', video_file_path)
+                return
+
+        except subprocess.CalledProcessError as proc_error:
+            LOGGER.warning(
+                'skip %s because it ran into the following exception: %s',
+                video_file_path,
+                proc_error
+            )
+            return
 
     video_file_prefix = match_result.group(1)
     video_file_metadata = video_map.setdefault(video_file_prefix, {})
