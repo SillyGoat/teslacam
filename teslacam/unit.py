@@ -6,7 +6,7 @@ class Units:
         self.units = units
 
     def __bool__(self):
-        return all([True for unit in self.units if unit])
+        return all((True for unit in self.units if unit))
 
     def __str__(self):
         valid_units = [str(unit) for unit in self.units if unit]
