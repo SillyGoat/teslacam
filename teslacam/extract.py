@@ -4,15 +4,18 @@ import collections
 import json
 import logging
 import os
+import pathlib
 import re
 import subprocess
 import tempfile
 
-from teslacam import asyncio_subprocess
-from teslacam import constants
-from teslacam import custom_types
+from . import(
+    asyncio_subprocess,
+    constants,
+    custom_types
+)
 
-LOGGER = logging.getLogger('teslacam')
+LOGGER = logging.getLogger(constants.LOGGER_NAME)
 
 ResourceAcquire = collections.namedtuple(
     'ResourceAcquire',
@@ -55,16 +58,14 @@ async def populate_video_map(
         video_map,
         ffprobe_file_path,
         acquire_probe,
-        input_folder_path,
-        video_filename
+        video_file_path
 ):
     ' Retrieve video metadata from raw video files '
-    match_result = re.fullmatch(REGEX_VIDEO_FILENAME, video_filename)
+    match_result = re.fullmatch(REGEX_VIDEO_FILENAME, video_file_path.name)
     if not match_result:
-        LOGGER.info('skip %s because it does not look like a video file', video_filename)
+        LOGGER.info('skip %s because it does not look like a video file', video_file_path)
         return
 
-    video_file_path = os.path.join(input_folder_path, video_filename)
     async with acquire_probe:
         try:
             video_stream_info = await get_video_stream_info(
@@ -103,7 +104,7 @@ async def create_video_file_map(
         input_folder_path
 ):
     ' Enumerates video folder to find files to layout and concatenate '
-    video_filenames = os.listdir(input_folder_path)
+    video_file_paths = input_folder_path.iterdir()
 
     video_map = {}
     await asyncio.gather(
@@ -112,10 +113,9 @@ async def create_video_file_map(
                 video_map,
                 ffprobe_file_path,
                 acquire_probe,
-                input_folder_path,
-                video_filename
+                video_file_path
             )
-            for video_filename in video_filenames
+            for video_file_path in video_file_paths
         )
     )
     LOGGER.info('gathered video info for %s', input_folder_path)
@@ -176,7 +176,7 @@ def generate_layout_command_line(
 
 def create_layout_video_file_path(working_layout_folder_path, file_basename):
     ' Return the full path to a layout video file '
-    return os.path.join(working_layout_folder_path, file_basename + '.mp4')
+    return working_layout_folder_path / f'{file_basename}.mp4'
 
 
 async def create_layout_video_process(
@@ -243,7 +243,7 @@ async def create_layout_videos(
 
 async def create_file_manifest(video_file_map, working_layout_folder_path):
     ' Create an ffmpeg file manifest for merging '
-    manifest_file_path = os.path.join(working_layout_folder_path, 'concat_manifest.txt')
+    manifest_file_path = working_layout_folder_path / 'concat_manifest.txt'
     with open(manifest_file_path, 'w') as manifest_file:
         for file_basename in sorted(video_file_map.keys()):
             layout_video_file_path = create_layout_video_file_path(
@@ -256,7 +256,7 @@ async def create_file_manifest(video_file_map, working_layout_folder_path):
 
 async def concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output_file_path):
     ' Concatenate video segments into one video file per video folder '
-    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    output_file_path.parent.mkdir(parents=True, exist_ok=True)
     cmd_line = [
         ffmpeg_file_path,  # full path to merge tool
         '-v', 'warning',
@@ -266,9 +266,9 @@ async def concatenate_layout_videos(ffmpeg_file_path, manifest_file_path, output
         '-c', 'copy',  # Do not re-encode for the output
         output_file_path,  # full path to output file
     ]
-    LOGGER.info('create merge process for %s', output_file_path)
+    LOGGER.debug('concatenate videos for %s', output_file_path)
     await asyncio_subprocess.check_call(cmd_line)
-    LOGGER.info('completed merge process for %s', output_file_path)
+    LOGGER.info('concatenation completed for %s', output_file_path)
 
 
 async def create_video_file(
@@ -286,9 +286,9 @@ async def create_video_file(
     if not video_file_map:
         return
 
-    base_name = os.path.basename(working_folder_paths.input)
-    working_layout_folder_path = os.path.join(working_folder_paths.intermediate, base_name)
-    os.makedirs(working_layout_folder_path)
+    base_name = working_folder_paths.input.name
+    working_layout_folder_path = working_folder_paths.intermediate / base_name
+    working_layout_folder_path.mkdir()
 
     await create_layout_videos(
         video_file_map.items(),
@@ -302,18 +302,8 @@ async def create_video_file(
         working_layout_folder_path
     )
 
-    output_file_path = os.path.join(working_folder_paths.output, f'{base_name}.mp4')
+    output_file_path = working_folder_paths.output / f'{base_name}.mp4'
     await concatenate_layout_videos(ffmpeg_paths.ffmpeg, manifest_file_path, output_file_path)
-
-
-def yield_input_folder_paths(base_input_folder_path):
-    ' Enumerate folder to yield subfolders to process '
-    input_folder_names = os.listdir(base_input_folder_path)
-    if os.path.isdir(os.path.join(base_input_folder_path, input_folder_names[0])):
-        for input_folder_name in input_folder_names:
-            yield os.path.join(base_input_folder_path, input_folder_name)
-    else:
-        yield base_input_folder_path
 
 
 async def create_video_files(
@@ -339,7 +329,7 @@ async def create_video_files(
                     working_folder_paths.intermediate,
                 )
             )
-            for input_folder_path in yield_input_folder_paths(working_folder_paths.input)
+            for input_folder_path in working_folder_paths.input.iterdir()
         )
     )
 
@@ -380,8 +370,8 @@ def extract_videos(
             raise
 
     if keep_temp_folder:
-        intermediate_folder_path = tempfile.mkdtemp(dir=base_folder_paths.output)
+        intermediate_folder_path = pathlib.Path(tempfile.mkdtemp(dir=base_folder_paths.output))
         asyncio.run(_async_extract(intermediate_folder_path))
     else:
         with tempfile.TemporaryDirectory(dir=base_folder_paths.output) as intermediate_folder_path:
-            asyncio.run(_async_extract(intermediate_folder_path))
+            asyncio.run(_async_extract(pathlib.Path(intermediate_folder_path)))

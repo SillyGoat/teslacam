@@ -19,25 +19,27 @@ Command line usage
 python -m teslacam --help
 ```
 ```
-usage: teslacam [-h] [--codec {hevc_nvenc,libx265}] [--preset PRESET] [--reduce REDUCE] [--layout {pyramid,tall_diamond,short_diamond,cross}] [--keep_temp_folder KEEP_TEMP_FOLDER]
+usage: teslacam [-h] [--codec {hevc_nvenc,libx265}] [--preset PRESET] [--reduce REDUCE] [--layout {pyramid,tall_diamond,short_diamond,cross}] [--keep_temp_folder KEEP_TEMP_FOLDER] [--log_level {debug,info,warning,error,critical,none}]
                 ffprobe_file_path ffmpeg_file_path input_folder_path output_folder_path
 
 positional arguments:
-  ffprobe_file_path     full path to ffprobe binary
-  ffmpeg_file_path      full path to ffmpeg binary
-  input_folder_path     full path to the video folder containing timestamped folders
-  output_folder_path    full path of the output folder for merged files and temporary work folder
+  ffprobe_file_path     Path to the ffprobe binary
+  ffmpeg_file_path      Path to the ffmpeg binary
+  input_folder_path     Path to the video folder containing timestamped folders
+  output_folder_path    Path to the output folder containing both merged files and the temporary work folder
 
 optional arguments:
   -h, --help            show this help message and exit
   --codec {hevc_nvenc,libx265}
-                        codec to use for encoding
-  --preset PRESET       preset to use for encoding
-  --reduce REDUCE       percent to reduce video to
+                        Codec to use for encoding (default: hevc_nvenc)
+  --preset PRESET       Codec's preset to use for encoding. See ffmpeg -h long for each codec's available presets (default: slow)
+  --reduce REDUCE       Percent to reduce video to (default: 100)
   --layout {pyramid,tall_diamond,short_diamond,cross}
-                        camera layout
+                        Camera layout (default: pyramid)
   --keep_temp_folder KEEP_TEMP_FOLDER
-                        keep temporary working folder after extraction
+                        Keep temporary working folder after extraction (default: False)
+  --log_level {debug,info,warning,error,critical,none}
+                        Display log messages that matches or exceeds the severity of the specified level. Use "none" to disable messages (default: info)
 ```
 API Usage
 ```

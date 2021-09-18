@@ -11,7 +11,7 @@ def _build(package_path):
         sys.executable,
         '-m', 'build',
         '--wheel',
-        str(package_path),
+        package_path,
     ]
     # Build module requires shell=True
     subprocess.run(cmd_line, check=True, shell=True)
@@ -22,7 +22,7 @@ def _publish(package_path, repository_name):
         '-m', 'twine',
         'upload',
         '--repository', repository_name,
-        str(package_path / 'dist/*'),
+        package_path / 'dist/*',
     ]
     subprocess.run(cmd_line, check=True)
 
@@ -43,14 +43,14 @@ def _main():
     args = parser.parse_args()
 
     package_path = pathlib.Path(__file__).parent
+    if args.clean:
+        _clean(package_path)
+
     if args.build:
         _build(package_path)
 
     if args.publish:
         _publish(package_path, args.publish)
-
-    if args.clean:
-        _clean(package_path)
 
 if __name__ == '__main__':
     _main()

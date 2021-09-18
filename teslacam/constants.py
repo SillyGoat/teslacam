@@ -1,6 +1,7 @@
 ' Constants '
+import logging
 
-from teslacam import layout
+from . import layout
 
 # Except for background, the key names must match the file name suffixes for the camera data
 LAYOUT_OFFSETS = {
@@ -77,3 +78,14 @@ CODEC_OPTIONS = {
 }
 
 DONT_REDUCE = 100 # Reduction factor when you don't want to reduce by anything
+
+LOGGER_NAME = 'teslacam'
+DISABLE_LOGGING = 'none'
+LOG_LEVELS = {
+    'debug' : logging.DEBUG,
+    'info' : logging.INFO,
+    'warning' : logging.WARNING,
+    'error' : logging.ERROR,
+    'critical' : logging.CRITICAL,
+    DISABLE_LOGGING : logging.NOTSET,
+}

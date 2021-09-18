@@ -1,8 +1,11 @@
 ' Argument parser '
 import argparse
+import pathlib
 
-from teslacam import constants
-from teslacam import custom_types
+from . import(
+    constants,
+    custom_types
+)
 
 def valid_percent(value):
     ' Validate percentage values '
@@ -34,52 +37,69 @@ def str_to_bool(value):
 
 def get_arguments():
     ' Parse command line arguments '
-    parser = argparse.ArgumentParser(prog=__package__)
+    parser = argparse.ArgumentParser(
+        prog=__package__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     parser.add_argument(
         'ffprobe_file_path',
-        help='full path to ffprobe binary',
+        type=pathlib.Path,
+        help='Path to the ffprobe binary',
     )
     parser.add_argument(
         'ffmpeg_file_path',
-        help='full path to ffmpeg binary',
+        type=pathlib.Path,
+        help='Path to the ffmpeg binary',
     )
     parser.add_argument(
         'input_folder_path',
-        help='full path to the video folder containing timestamped folders',
+        type=pathlib.Path,
+        help='Path to the video folder containing timestamped folders',
     )
     parser.add_argument(
         'output_folder_path',
-        help='full path of the output folder for merged files and temporary work folder',
+        type=pathlib.Path,
+        help='Path to the output folder containing both merged files and the temporary work folder',
     )
     parser.add_argument(
         '--codec',
         default='hevc_nvenc',
-        help='codec to use for encoding',
+        help='Codec to use for encoding',
         choices=constants.CODEC_OPTIONS.keys(),
     )
     preset_token = '--preset'
     parser.add_argument(
         preset_token,
         default='slow',
-        help='preset to use for encoding',
+        help='Codec\'s preset to use for encoding.  See ffmpeg -h long for each codec\'s available presets',
     )
     parser.add_argument(
         '--reduce',
         default=constants.DONT_REDUCE,
-        help='percent to reduce video to',
+        help='Percent to reduce video to',
         type=valid_percent,
     )
     parser.add_argument(
         '--layout',
         default='pyramid',
-        help='camera layout',
+        help='Camera layout',
         choices=constants.LAYOUT_OFFSETS.keys(),
     )
     parser.add_argument(
         '--keep_temp_folder',
         default=False,
-        help='keep temporary working folder after extraction',
+        help='Keep temporary working folder after extraction',
         type=str_to_bool,
+    )
+    parser.add_argument(
+        '--log_level',
+        default='info',
+        help=(
+            'Display log messages that matches or exceeds the severity '
+            f'of the specified level.  Use "{constants.DISABLE_LOGGING}" '
+            'to disable messages'
+        ),
+        choices=constants.LOG_LEVELS.keys()
     )
     args = parser.parse_args()
 
@@ -91,19 +111,22 @@ def get_arguments():
         )
 
     return (
-        custom_types.FFMpegPaths(
-            args.ffprobe_file_path,
-            args.ffmpeg_file_path,
-        ),
-        custom_types.LayoutOptions(
-            args.codec,
-            args.preset,
-            args.layout,
-            args.reduce,
-        ),
-        custom_types.BaseFolderPaths(
-            args.input_folder_path,
-            args.output_folder_path,
-        ),
-        args.keep_temp_folder,
+        constants.LOG_LEVELS[args.log_level],
+        (
+            custom_types.FFMpegPaths(
+                args.ffprobe_file_path,
+                args.ffmpeg_file_path,
+            ),
+            custom_types.LayoutOptions(
+                args.codec,
+                args.preset,
+                args.layout,
+                args.reduce,
+            ),
+            custom_types.BaseFolderPaths(
+                args.input_folder_path,
+                args.output_folder_path,
+            ),
+            args.keep_temp_folder,
+        )
     )

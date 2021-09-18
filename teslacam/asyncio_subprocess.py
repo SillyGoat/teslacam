@@ -3,11 +3,14 @@ import asyncio
 import logging
 import subprocess
 
-LOGGER = logging.getLogger('teslacam')
+from . import constants
+
+LOGGER = logging.getLogger(constants.LOGGER_NAME)
 
 async def _check_output(cmd_line, stdout):
     proc = None
     try:
+        LOGGER.debug('running command line: %s', cmd_line)
         proc = await asyncio.create_subprocess_exec(
             *cmd_line,
             stdout=stdout
